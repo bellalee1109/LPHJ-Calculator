@@ -77,9 +77,9 @@
   .brow .val{font-variant-numeric:tabular-nums;font-weight:600;}
   .brow.saved .val{color:var(--good);}
   .brow.promo .val{color:var(--promo);}
-  .brow.note{align-items:flex-start;padding-top:8px;}
-  .brow.note .val{font-weight:500;color:var(--muted);font-size:12px;text-align:right;white-space:normal;max-width:72%;line-height:1.5;}
-  .live-note{margin-top:6px;font-size:11px;color:var(--muted);line-height:1.45;}
+  .brow .k .s{font-size:11px;opacity:.75;font-weight:500;margin-left:2px;}
+  .live-brk .s{font-size:10.5px;opacity:.7;}
+  .rcard .net .fx{font-size:10.5px;color:var(--muted);font-weight:500;margin-top:1px;letter-spacing:.02em;}
   .rcard .foot{display:flex;justify-content:flex-end;padding:0 12px 10px;}
   .rcard .del{border:0;background:none;color:var(--warn);font-size:13px;font-weight:600;padding:6px 8px;}
 
@@ -160,7 +160,7 @@
 
       <label>GST tourist refund</label>
       <select id="refundOn">
-        <option value="on">Official spend-interval table</option>
+        <option value="on">Tax Refund</option>
         <option value="off">No tax refund</option>
       </select>
 
@@ -171,7 +171,7 @@
       </select>
 
       <label>SGD → RMB rate (¥ per S$1)</label>
-      <div class="field has-pre"><span class="pre">¥</span><input id="fx" type="number" inputmode="decimal" value="5.31"></div>
+      <div class="field has-pre"><span class="pre">¥</span><input id="fx" type="number" inputmode="decimal" value="5.3"></div>
       <div class="pad-bottom"></div>
     </div>
   </details>
@@ -221,15 +221,15 @@ function compute(a,s){
   const net=after-mbs-refund,saved=a-net,netRmb=net*s.fx;
   return{a,disc,after,mbs,refund,net,saved,netRmb};
 }
+function promoLabel(s){
+  if(s.pmode==='none')return 'none';
+  if(s.pmode==='vip')return 'VIP 5%';
+  return '$'+s.off+' off per $'+s.per;
+}
+function mbsLabel(s){return (s.mbs*100).toFixed(1).replace(/\.0$/,'')+'%';}
+function refundLabel(s){return s.refund==='on'?'YES':'NO';}
 function settingsNote(s){
-  const parts=[];
-  if(s.pmode==='none')parts.push('No promo');
-  else if(s.pmode==='vip')parts.push('VIP · 5% off');
-  else parts.push('$'+s.off+' off per $'+s.per);
-  parts.push((s.mbs*100).toFixed(1).replace(/\.0$/,'')+'% MBS');
-  parts.push(s.refund==='on'?'GST refund on':'GST refund off');
-  parts.push('FX ¥'+s.fx+'/S$1');
-  return parts.join(' · ');
+  return 'Promo: '+promoLabel(s)+' · MBS '+mbsLabel(s)+' · GST refund '+refundLabel(s)+' · FX ¥'+s.fx+'/S$1';
 }
 function saveState(){
   try{
@@ -246,6 +246,11 @@ function loadState(){
     const raw=localStorage.getItem(STORAGE_KEY);
     if(!raw)return;
     const stored=JSON.parse(raw);
+    if(stored&&stored.settings&&!stored.fxDefault53){
+      stored.settings.fx='5.3';
+      stored.fxDefault53=true;
+      try{localStorage.setItem(STORAGE_KEY,JSON.stringify(stored));}catch(e){}
+    }
     if(stored&&stored.settings){
       SETTING_IDS.forEach(id=>{
         if(stored.settings[id]!=null)$(id).value=stored.settings[id];
@@ -267,12 +272,12 @@ function renderLive(){
       <div class="rmb">${yuan(r.netRmb)}</div>
     </div>
     <div class="live-brk">
-      ${r.disc>0?`<span>Promo <b>-${money(r.disc)}</b></span>`:''}
-      <span>MBS <b>-${money(r.mbs)}</b></span>
-      <span>GST refund <b>-${money(r.refund)}</b></span>
+      ${r.disc>0?`<span>Promo <span class="s">(${promoLabel(s)})</span> <b>-${money(r.disc)}</b></span>`:''}
+      <span>MBS <span class="s">(${mbsLabel(s)})</span> <b>-${money(r.mbs)}</b></span>
+      <span>GST refund <span class="s">(${refundLabel(s)})</span> <b>-${money(r.refund)}</b></span>
       <span>Saved <b>${money(r.saved)} (${pc}%)</b></span>
+      <span>FX <span class="s">(¥${s.fx}/S$1)</span></span>
     </div>
-    <div class="live-note">${settingsNote(s)}</div>
     <button class="pin" id="pinBtn">+ Save to list</button>
   </div>`;
   $('pinBtn').onclick=()=>{rows.push({amount:v,...settings()});$('amt').value='';$('amt').blur();renderLive();render();};
@@ -289,15 +294,14 @@ function render(){
     h+=`<div class="rcard">
       <div class="top">
         <div class="spent">You spend<b>${money(r.a)}</b></div>
-        <div class="net"><div class="lbl">Real cost</div><div class="v">${money(r.net)}</div><div class="rmb">${yuan(r.netRmb)}</div></div>
+        <div class="net"><div class="lbl">Real cost</div><div class="v">${money(r.net)}</div><div class="rmb">${yuan(r.netRmb)}</div><div class="fx">FX ¥${row.fx}/S$1</div></div>
       </div>
       <div class="breakdown">
-        ${r.disc>0?`<div class="brow promo"><span class="k">Promo discount</span><span class="val">-${money(r.disc)}</span></div>
+        ${r.disc>0?`<div class="brow promo"><span class="k">Promo discount <span class="s">(${promoLabel(row)})</span></span><span class="val">-${money(r.disc)}</span></div>
         <div class="brow"><span class="k">After discount</span><span class="val">${money(r.after)}</span></div>`:''}
-        <div class="brow"><span class="k">MBS rewards</span><span class="val">-${money(r.mbs)}</span></div>
-        <div class="brow"><span class="k">GST refund</span><span class="val">-${money(r.refund)}</span></div>
+        <div class="brow"><span class="k">MBS rewards <span class="s">(${mbsLabel(row)})</span></span><span class="val">-${money(r.mbs)}</span></div>
+        <div class="brow"><span class="k">GST refund <span class="s">(${refundLabel(row)})</span></span><span class="val">-${money(r.refund)}</span></div>
         <div class="brow saved"><span class="k">Total saved</span><span class="val">${money(r.saved)} (${pc}%)</span></div>
-        <div class="brow note"><span class="k">Settings used</span><span class="val">${settingsNote(row)}</span></div>
       </div>
       <div class="foot"><button class="del" data-i="${i}">Remove</button></div>
     </div>`;
